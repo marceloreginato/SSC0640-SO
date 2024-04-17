@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "funcoesfornecidas.h": "c",
+        "funcoescriadas.h": "c",
+        "listatecnologias.h": "c"
+    }
+}

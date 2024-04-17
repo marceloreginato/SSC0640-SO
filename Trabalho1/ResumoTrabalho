@@ -1,0 +1,15 @@
+Resumo funcionamento:
+
+- Rank 0 cria as threads;
+- Rank 4 e 3 determinam os slots disponíveis para receber canetas;
+- Quando a capacidade máxima de Rank 4 é atingida: Rank 1 e 2 são suspensos(Rank 3 verifica Rank 4 e controla
+  Rank 1 e 2 a partir disso);
+- Cada caneta produzida no Rank 2 é enviada ao Rank 4;
+- Rank 4 armazena até o Rank 5 pedir a compra;
+- Se o pedido for atendido corretamente, ok, se não houver canetas o suficiente, é enviado o que tem no armazenamento,
+  se houver 0 canetas é enviada uma mensagem ao comprador (Rank 5);
+- Quando Rank 5 recebe o pedido, ele avisa o Rank 0;
+- A aplicação termina quando não há matéria prima no Rank 1 e não há canetas no Rank 4;
+- As saídas devem ser impressas para verificar a execução do programa e só podem ser feitas pelo Rank 0.
+
+Feito por Guilherme Fincatti e digitalizado por Marcelo Reginato.
