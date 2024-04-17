@@ -6,7 +6,7 @@ make: myapps run
 all: myapps
 
 myapps:
-	gcc $(APPS)/main.c -o $(BIN)/programaTrab
+	gcc $(APPS)/main.c -o $(BIN)/programaTrab -pthread -lrt
 
 run:
 	$(BIN)/programaTrab
