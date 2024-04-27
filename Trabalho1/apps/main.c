@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <unistd.h>
 
 #define NUM_THREADS 6
 
@@ -25,7 +26,7 @@ void *criador(void *arg) {
 
         // Monitoramento contínuo da produção
         while (1) {
-            sleep(5); // Simulação de tempo de monitoramento
+            sleep(1); // Simulação de tempo de monitoramento
             sem_wait(&args->semaphores[4]); // Espera pelo semáforo do depósito de canetas.
             printf("Monitorando a produção de canetas. Canetas disponíveis para venda: %d\n", args->args[4]);
             sem_post(&args->semaphores[4]);
@@ -76,7 +77,7 @@ void *comprador(void *arg) {
     thread_args *args = (thread_args *) arg;
     printf("Thread Comprador - Compras a cada %d segundos.\n", args->args[6]);
 
-    while (1) {
+    while (args->args[4] > 0) {  // Continua comprando enquanto houver canetas no depósito
         sleep(args->args[6]);  // Espera o intervalo entre compras
         sem_wait(&args->semaphores[4]);  // Espera para acessar o depósito
 
@@ -88,14 +89,12 @@ void *comprador(void *arg) {
         }
 
         sem_post(&args->semaphores[4]);  // Libera acesso ao depósito
-
-        if (args->args[4] == 0) {  // Se não houver mais canetas, encerra
-            break;
-        }
     }
 
+    printf("Depósito vazio. Thread Comprador encerrada.\n");
     pthread_exit(NULL);
 }
+
 
 
 void *deposito_canetas(void *arg) {
