@@ -73,6 +73,48 @@ void *deposito_materia_prima(void *arg) {
 }
 
 
+void *controle(void *arg) {
+    thread_args *args = (thread_args *) arg;
+    printf("Thread Controle em execução, coordenando operações.\n");
+
+    while (1) {
+        sleep(10);  // Intervalo para verificação das condições da fábrica
+
+        if (args->args[0] <= 0) {
+            printf("Controle detectou falta de matéria-prima.\n");
+            sem_post(&args->semaphores[1]);  // Solicita matéria-prima
+        }
+
+        if (args->args[4] >= 100) {  // Checa se o depósito de canetas está cheio
+            printf("Controle detectou que o depósito de canetas está cheio.\n");
+            break;  // Encerra a fábrica se atingir a capacidade máxima
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+
+void *deposito_canetas(void *arg) {
+    thread_args *args = (thread_args *) arg;
+    printf("Depósito de Canetas com capacidade de %d canetas.\n", args->args[4]);
+
+    while (1) {
+        sem_wait(&args->semaphores[4]);  // Espera caneta ser produzida
+        args->args[4]++;  // Incrementa o contador de canetas
+        printf("Caneta adicionada ao depósito, totalizando %d canetas.\n", args->args[4]);
+
+        if (args->args[4] >= 100) {  // Capacidade máxima do depósito
+            printf("Depósito cheio. Não é possível armazenar mais canetas.\n");
+            sem_post(&args->semaphores[3]);  // Avisa ao controle sobre a capacidade máxima
+            break;
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+
 void *comprador(void *arg) {
     thread_args *args = (thread_args *) arg;
     printf("Thread Comprador - Compras a cada %d segundos.\n", args->args[6]);
@@ -97,46 +139,9 @@ void *comprador(void *arg) {
 
 
 
-void *deposito_canetas(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Depósito de Canetas com capacidade de %d canetas.\n", args->args[4]);
-
-    while (1) {
-        sem_wait(&args->semaphores[4]);  // Espera caneta ser produzida
-        args->args[4]++;  // Incrementa o contador de canetas
-        printf("Caneta adicionada ao depósito, totalizando %d canetas.\n", args->args[4]);
-
-        if (args->args[4] >= 100) {  // Capacidade máxima do depósito
-            printf("Depósito cheio. Não é possível armazenar mais canetas.\n");
-            sem_post(&args->semaphores[3]);  // Avisa ao controle sobre a capacidade máxima
-            break;
-        }
-    }
-
-    pthread_exit(NULL);
-}
 
 
-void *controle(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Thread Controle em execução, coordenando operações.\n");
 
-    while (1) {
-        sleep(10);  // Intervalo para verificação das condições da fábrica
-
-        if (args->args[0] <= 0) {
-            printf("Controle detectou falta de matéria-prima.\n");
-            sem_post(&args->semaphores[1]);  // Solicita matéria-prima
-        }
-
-        if (args->args[4] >= 100) {  // Checa se o depósito de canetas está cheio
-            printf("Controle detectou que o depósito de canetas está cheio.\n");
-            break;  // Encerra a fábrica se atingir a capacidade máxima
-        }
-    }
-
-    pthread_exit(NULL);
-}
 
 
 void *celula_fabricacao(void *arg) {
