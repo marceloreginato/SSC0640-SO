@@ -13,3 +13,22 @@ Resumo funcionamento:
 - As saídas devem ser impressas para verificar a execução do programa e só podem ser feitas pelo Rank 0.
 
 Feito por Guilherme Fincatti e digitalizado por Marcelo Reginato.
+
+/********************* Definição dos Semáforos ************************/
+* Depósito de Canetas (Rank 4)
+  * available (armazena a quantidade de slots disponíveis "semáforo contador") -> indica quando acaba os slots disponíveis -> Controle precisa barrar a transferência de matéria prima, a fabrição de caneta e a transferência de caneta
+
+* Controle (Rank 3)
+  * available -> espera ser notificado que zerou
+  * go1 (dependente de "available"("mutex")) -> indica que o rank1 pode funcionar -> enviando matéria prima para o rank2
+  * go2 (dependente de "available"("mutex")) -> indica que o rank2 pode funcionar -> enviando caneta para o rank3
+
+* Depósito de Matéria Prima (Rank 1)
+  * go1
+  * full (armazena a quantidade de matéria prima no rank1 ("semáforo contador")) -> a cada transferência para o rank2, subtrai int02 da quantidade atual -> quando chegar em 0, sinaliza para o criador para finalizar a aplicação
+
+* Célula de Fabricação (Rank 2)
+  * go2
+
+* Comprador (Rank 5)
+  * 
