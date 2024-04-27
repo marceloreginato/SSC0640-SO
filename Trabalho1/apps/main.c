@@ -5,7 +5,6 @@
 
 #define NUM_THREADS 6
 
-// Estrutura para armazenar argumentos da thread
 typedef struct {
     int id;
     sem_t *semaphores;
@@ -15,37 +14,152 @@ typedef struct {
 void *criador(void *arg) {
     thread_args *args = (thread_args *) arg;
     printf("Thread Criador em execução.\n");
-    // Implementação do criador
+
+    // Inicialização: Pode configurar ou verificar o estado inicial da fábrica.
+    printf("Verificando a disponibilidade inicial de recursos...\n");
+    sem_wait(&args->semaphores[1]); // Espera pelo semáforo do depósito de matéria prima.
+
+    if (args->args[0] > 0) { // Checa se há matéria prima disponível
+        printf("Matéria prima disponível. Iniciando a fabricação de canetas...\n");
+        sem_post(&args->semaphores[2]); // Sinaliza para a Célula de Fabricação iniciar a produção.
+
+        // Monitoramento contínuo da produção
+        while (1) {
+            sleep(5); // Simulação de tempo de monitoramento
+            sem_wait(&args->semaphores[4]); // Espera pelo semáforo do depósito de canetas.
+            printf("Monitorando a produção de canetas. Canetas disponíveis para venda: %d\n", args->args[4]);
+            sem_post(&args->semaphores[4]);
+
+            // Condição de parada (pode ser ajustada conforme a necessidade)
+            if (args->args[4] >= 100) { // Supõe-se que 100 canetas é a capacidade máxima para o exemplo
+                printf("Capacidade máxima alcançada. Parando a produção...\n");
+                break;
+            }
+        }
+    } else {
+        printf("Matéria prima insuficiente para iniciar a produção.\n");
+    }
+
+    sem_post(&args->semaphores[1]); // Libera o semáforo do depósito de matéria prima.
+    printf("Thread Criador finalizando operações.\n");
+    pthread_exit(NULL);
 }
+
 
 void *deposito_materia_prima(void *arg) {
     thread_args *args = (thread_args *) arg;
-    printf("Depósito de Matéria Prima com %d unidades.\n", args->args[0]);
-    // Implementação do depósito de matéria prima
+    printf("Thread Depósito de Matéria Prima iniciada com %d unidades.\n", args->args[0]);
+
+    while (1) {
+        sem_wait(&args->semaphores[1]);  // Espera requisição para liberar matéria-prima
+        
+        if (args->args[0] <= 0) {
+            printf("Depósito de Matéria Prima: Esgotado!\n");
+            sem_post(&args->semaphores[1]);  // Libera o semáforo se não há matéria-prima
+            break;  // Encerra a thread se não há mais matéria-prima
+        }
+
+        // Simula o envio de matéria-prima para a fabricação
+        printf("Enviando matéria-prima para fabricação...\n");
+        args->args[0]--;  // Reduz a quantidade de matéria-prima disponível
+        sleep(1);  // Simula o tempo de processamento
+
+        sem_post(&args->semaphores[2]);  // Notifica a célula de fabricação que a matéria-prima está disponível
+    }
+
+    printf("Thread Depósito de Matéria Prima finalizando...\n");
+    pthread_exit(NULL);
 }
 
-void *celula_fabricacao(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Célula de Fabricação de Canetas - Tempo de fabricação por caneta: %d segundos.\n", args->args[3]);
-    // Implementação da célula de fabricação
-}
-
-void *controle(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Thread Controle em execução.\n");
-    // Implementação do controle
-}
-
-void *deposito_canetas(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Depósito de Canetas com capacidade de %d canetas.\n", args->args[4]);
-    // Implementação do depósito de canetas
-}
 
 void *comprador(void *arg) {
     thread_args *args = (thread_args *) arg;
     printf("Thread Comprador - Compras a cada %d segundos.\n", args->args[6]);
-    // Implementação do comprador
+
+    while (1) {
+        sleep(args->args[6]);  // Espera o intervalo entre compras
+        sem_wait(&args->semaphores[4]);  // Espera para acessar o depósito
+
+        if (args->args[4] > 0) {
+            args->args[4]--;  // Compra uma caneta
+            printf("Comprador comprou uma caneta, restam %d canetas.\n", args->args[4]);
+        } else {
+            printf("Comprador não pôde comprar, depósito vazio.\n");
+        }
+
+        sem_post(&args->semaphores[4]);  // Libera acesso ao depósito
+
+        if (args->args[4] == 0) {  // Se não houver mais canetas, encerra
+            break;
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+
+void *deposito_canetas(void *arg) {
+    thread_args *args = (thread_args *) arg;
+    printf("Depósito de Canetas com capacidade de %d canetas.\n", args->args[4]);
+
+    while (1) {
+        sem_wait(&args->semaphores[4]);  // Espera caneta ser produzida
+        args->args[4]++;  // Incrementa o contador de canetas
+        printf("Caneta adicionada ao depósito, totalizando %d canetas.\n", args->args[4]);
+
+        if (args->args[4] >= 100) {  // Capacidade máxima do depósito
+            printf("Depósito cheio. Não é possível armazenar mais canetas.\n");
+            sem_post(&args->semaphores[3]);  // Avisa ao controle sobre a capacidade máxima
+            break;
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+
+void *controle(void *arg) {
+    thread_args *args = (thread_args *) arg;
+    printf("Thread Controle em execução, coordenando operações.\n");
+
+    while (1) {
+        sleep(10);  // Intervalo para verificação das condições da fábrica
+
+        if (args->args[0] <= 0) {
+            printf("Controle detectou falta de matéria-prima.\n");
+            sem_post(&args->semaphores[1]);  // Solicita matéria-prima
+        }
+
+        if (args->args[4] >= 100) {  // Checa se o depósito de canetas está cheio
+            printf("Controle detectou que o depósito de canetas está cheio.\n");
+            break;  // Encerra a fábrica se atingir a capacidade máxima
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+
+void *celula_fabricacao(void *arg) {
+    thread_args *args = (thread_args *) arg;
+    printf("Célula de Fabricação de Canetas - Tempo de fabricação por caneta: %d segundos.\n", args->args[3]);
+
+    while (1) {
+        sem_wait(&args->semaphores[2]);  // Espera sinal para começar a fabricação
+
+        if (args->args[0] > 0) {  // Checa se há matéria-prima
+            sleep(args->args[3]);  // Simula o tempo de fabricação de uma caneta
+            printf("Uma caneta foi fabricada.\n");
+            args->args[0]--;  // Decrementa a matéria-prima
+            sem_post(&args->semaphores[4]);  // Incrementa o número de canetas no depósito
+        } else {
+            printf("Sem matéria-prima para continuar a fabricação.\n");
+            sem_post(&args->semaphores[1]);  // Sinaliza que precisa de mais matéria-prima
+            break;
+        }
+    }
+
+    pthread_exit(NULL);
 }
 
 int main(int argc, char *argv[]) {
