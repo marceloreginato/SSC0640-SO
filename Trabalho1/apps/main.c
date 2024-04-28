@@ -6,34 +6,17 @@
 
 #define NUM_THREADS 6
 
-typedef struct {
-    int id;
-    sem_t *semaphores;
-    int *args;
-} thread_args;
+int entrada[7]; //Vai armazenar os argumentos passados na entrada
 
-int argumentos[7];
+//Declaração e criação dos semáforos
+sem_t available, go1, go2, full; //FALTA TERMINAR ESSE KRL
 
 
 void *deposito_materia_prima(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Thread Depósito de Matéria Prima iniciada com %d unidades.\n", args->args[0]);
+    //printf("Thread Depósito de Matéria Prima iniciada com %d unidades.\n");
 
     while (1) {
-        sem_wait(&args->semaphores[1]);  // Espera requisição para liberar matéria-prima
         
-        if (args->args[0] <= 0) {
-            printf("Depósito de Matéria Prima: Esgotado!\n");
-            sem_post(&args->semaphores[1]);  // Libera o semáforo se não há matéria-prima
-            break;  // Encerra a thread se não há mais matéria-prima
-        }
-
-        // Simula o envio de matéria-prima para a fabricação
-        printf("Enviando matéria-prima para fabricação...\n");
-        args->args[0]--;  // Reduz a quantidade de matéria-prima disponível
-        sleep(1);  // Simula o tempo de processamento
-
-        sem_post(&args->semaphores[2]);  // Notifica a célula de fabricação que a matéria-prima está disponível
     }
 
     printf("Thread Depósito de Matéria Prima finalizando...\n");
@@ -42,21 +25,10 @@ void *deposito_materia_prima(void *arg) {
 
 
 void *controle(void *arg) {
-    thread_args *args = (thread_args *) arg;
     printf("Thread Controle em execução, coordenando operações.\n");
 
     while (1) {
-        sleep(10);  // Intervalo para verificação das condições da fábrica
-
-        if (args->args[0] <= 0) {
-            printf("Controle detectou falta de matéria-prima.\n");
-            sem_post(&args->semaphores[1]);  // Solicita matéria-prima
-        }
-
-        if (args->args[4] >= 100) {  // Checa se o depósito de canetas está cheio
-            printf("Controle detectou que o depósito de canetas está cheio.\n");
-            break;  // Encerra a fábrica se atingir a capacidade máxima
-        }
+        
     }
 
     pthread_exit(NULL);
@@ -64,19 +36,10 @@ void *controle(void *arg) {
 
 
 void *deposito_canetas(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Depósito de Canetas com capacidade de %d canetas.\n", args->args[4]);
+    //printf("Depósito de Canetas com capacidade de %d canetas.\n");
 
     while (1) {
-        sem_wait(&args->semaphores[4]);  // Espera caneta ser produzida
-        args->args[4]++;  // Incrementa o contador de canetas
-        printf("Caneta adicionada ao depósito, totalizando %d canetas.\n", args->args[4]);
-
-        if (args->args[4] >= 100) {  // Capacidade máxima do depósito
-            printf("Depósito cheio. Não é possível armazenar mais canetas.\n");
-            sem_post(&args->semaphores[3]);  // Avisa ao controle sobre a capacidade máxima
-            break;
-        }
+        
     }
 
     pthread_exit(NULL);
@@ -84,21 +47,10 @@ void *deposito_canetas(void *arg) {
 
 
 void *comprador(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Thread Comprador - Compras a cada %d segundos.\n", args->args[6]);
+    //printf("Thread Comprador - Compras a cada %d segundos.\n");
 
-    while (args->args[4] > 0) {  // Continua comprando enquanto houver canetas no depósito
-        sleep(args->args[6]);  // Espera o intervalo entre compras
-        sem_wait(&args->semaphores[4]);  // Espera para acessar o depósito
-
-        if (args->args[4] > 0) {
-            args->args[4]--;  // Compra uma caneta
-            printf("Comprador comprou uma caneta, restam %d canetas.\n", args->args[4]);
-        } else {
-            printf("Comprador não pôde comprar, depósito vazio.\n");
-        }
-
-        sem_post(&args->semaphores[4]);  // Libera acesso ao depósito
+    while (1) { 
+        
     }
 
     printf("Depósito vazio. Thread Comprador encerrada.\n");
@@ -107,86 +59,40 @@ void *comprador(void *arg) {
 
 
 void *celula_fabricacao(void *arg) {
-    thread_args *args = (thread_args *) arg;
-    printf("Célula de Fabricação de Canetas - Tempo de fabricação por caneta: %d segundos.\n", args->args[3]);
+    //printf("Célula de Fabricação de Canetas - Tempo de fabricação por caneta: %d segundos.\n");
 
     while (1) {
-        sem_wait(&args->semaphores[2]);  // Espera sinal para começar a fabricação
-
-        if (args->args[0] > 0) {  // Checa se há matéria-prima
-            sleep(args->args[3]);  // Simula o tempo de fabricação de uma caneta
-            printf("Uma caneta foi fabricada.\n");
-            args->args[0]--;  // Decrementa a matéria-prima
-            sem_post(&args->semaphores[4]);  // Incrementa o número de canetas no depósito
-        } else {
-            printf("Sem matéria-prima para continuar a fabricação.\n");
-            sem_post(&args->semaphores[1]);  // Sinaliza que precisa de mais matéria-prima
-            break;
-        }
+        
     }
 
     pthread_exit(NULL);
 }
 
-
 void *criador(void *arg) {
-
-    thread_args *args = (thread_args *) arg;
     printf("Thread Criador em execução.\n");
 
     pthread_t threads[NUM_THREADS];
-    thread_args t_args[NUM_THREADS];
-    sem_t semaphores[NUM_THREADS];
 
-    // Inicialização de semáforos
-    for (int i = 1; i < NUM_THREADS; i++) {
-        sem_init(&semaphores[i], 0, 1);
-    }
+    //Inicialização dos semáforos
+    sem_init(&available, 0, entrada[4]); //Semáforo contador para determinar o número de slots disponíveis no Rank 4
+    sem_init(&go1, 0, 1); //Mutex para liberar a ação do depósito de matéria prima
+    sem_init(&go2, 0, 1); //Mutex para liberar a ação da célula de fabricação de canetas
+    sem_init(&full, 0, entrada[0]); //Mutex para liberar a ação do depósito de matéria prima
 
     // Criando threads
-    for (int i = 1; i < NUM_THREADS; i++){
-        t_args[i].id = i;
-        t_args[i].semaphores = semaphores;
-        t_args[i].args = argumentos;
-        if (i == 1) {
-            pthread_create(&threads[i], NULL, deposito_materia_prima, (void *)&t_args[i]);
-        } else if (i == 2) {
-            pthread_create(&threads[i], NULL, celula_fabricacao, (void *)&t_args[i]);
-        } else if (i == 3) {
-            pthread_create(&threads[i], NULL, controle, (void *)&t_args[i]);
-        } else if (i == 4) {
-            pthread_create(&threads[i], NULL, deposito_canetas, (void *)&t_args[i]);
-        } else if (i == 5) {
-            pthread_create(&threads[i], NULL, comprador, (void *)&t_args[i]);
-        }
-    }
+    pthread_create(&threads[1], NULL, deposito_materia_prima, NULL);
+    pthread_create(&threads[2], NULL, celula_fabricacao, NULL);
+    pthread_create(&threads[3], NULL, controle, NULL);
+    pthread_create(&threads[4], NULL, deposito_canetas, NULL);
+    pthread_create(&threads[5], NULL, comprador, NULL);
 
     // Inicialização: Pode configurar ou verificar o estado inicial da fábrica.
     printf("Verificando a disponibilidade inicial de recursos...\n");
-    sem_wait(&args->semaphores[1]); // Espera pelo semáforo do depósito de matéria prima.
+    //sem_wait(&args->semaphores[1]); // Espera pelo semáforo do depósito de matéria prima.
 
-    if (args->args[0] > 0) { // Checa se há matéria prima disponível
-        printf("Matéria prima disponível. Iniciando a fabricação de canetas...\n");
-        sem_post(&args->semaphores[2]); // Sinaliza para a Célula de Fabricação iniciar a produção.
+    
 
-        // Monitoramento contínuo da produção
-        while (1) {
-            sleep(1); // Simulação de tempo de monitoramento
-            sem_wait(&args->semaphores[4]); // Espera pelo semáforo do depósito de canetas.
-            printf("Monitorando a produção de canetas. Canetas disponíveis para venda: %d\n", args->args[4]);
-            sem_post(&args->semaphores[4]);
-
-            // Condição de parada (pode ser ajustada conforme a necessidade)
-            if (args->args[4] >= 100) { // Supõe-se que 100 canetas é a capacidade máxima para o exemplo
-                printf("Capacidade máxima alcançada. Parando a produção...\n");
-                break;
-            }
-        }
-    } else {
-        printf("Matéria prima insuficiente para iniciar a produção.\n");
-    }
-
-    sem_post(&args->semaphores[1]); // Libera o semáforo do depósito de matéria prima.
+    //sem_post(&args->semaphores[1]); // Libera o semáforo do depósito de matéria prima.
     printf("Thread Criador finalizando operações.\n");
     pthread_exit(NULL);
 }
@@ -198,50 +104,20 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    //Lendo a entrada passada pelo makefile e armazenando-a no vetor global, fazendo a separação de argumentos de acordo  
     for (int i = 1; i < 8; i++) {
-        argumentos[i - 1] = atoi(argv[i]);
+        entrada[i - 1] = atoi(argv[i]);
     }
 
+    //Declarando o vetor de threads
     pthread_t threads[NUM_THREADS];
-    sem_t semaphores[NUM_THREADS];
-    thread_args t_args[NUM_THREADS];
-
-    // Inicialização de semáforos
-    sem_init(&semaphores[0], 0, 1);
 
     // Criação de threads
-    t_args[0].id = 0;
-    t_args[0].semaphores = semaphores;
-    t_args[0].args = argumentos;
-    pthread_create(&threads[0], NULL, criador, (void *)&t_args[0]);
-
-    /*for (int i = 0; i < NUM_THREADS; i++) {
-        t_args[i].id = i;
-        t_args[i].semaphores = semaphores;
-        t_args[i].args = args;
-        if (i == 0) {
-            pthread_create(&threads[i], NULL, criador, (void *)&t_args[i]);
-        } else if (i == 1) {
-            pthread_create(&threads[i], NULL, deposito_materia_prima, (void *)&t_args[i]);
-        } else if (i == 2) {
-            pthread_create(&threads[i], NULL, celula_fabricacao, (void *)&t_args[i]);
-        } else if (i == 3) {
-            pthread_create(&threads[i], NULL, controle, (void *)&t_args[i]);
-        } else if (i == 4) {
-            pthread_create(&threads[i], NULL, deposito_canetas, (void *)&t_args[i]);
-        } else if (i == 5) {
-            pthread_create(&threads[i], NULL, comprador, (void *)&t_args[i]);
-        }
-    }*/
+    pthread_create(&threads[0], NULL, criador, NULL);
 
     // Aguardar término das threads
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(threads[i], NULL);
-    }
-
-    // Limpeza dos recursos
-    for (int i = 0; i < NUM_THREADS; i++) {
-        sem_destroy(&semaphores[i]);
     }
 
     return 0;
