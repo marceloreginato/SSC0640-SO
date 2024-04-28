@@ -11,12 +11,22 @@ int entrada[7]; //Vai armazenar os argumentos passados na entrada
 //Declaração e criação dos semáforos
 sem_t available, go1, go2, full; //FALTA TERMINAR ESSE KRL
 
-
 void *deposito_materia_prima(void *arg) {
     //printf("Thread Depósito de Matéria Prima iniciada com %d unidades.\n");
 
     while (1) {
-        
+         sem_wait(&go1); // Espera liberação para proceder, espera para prosseguir
+
+        if (entrada[0] > 0) {
+            entrada[0]--; // Decrementa a matéria-prima disponível
+            printf("Matéria-prima liberada para fabricação. Matéria-prima restante: %d\n", entrada[0]);
+            sem_post(&go2); 
+        } else {
+            printf("Depósito de Matéria Prima: Esgotado!\n");
+            sem_post(&go1); 
+            break; 
+        }
+        sleep(1); // Ajustar ainda
     }
 
     printf("Thread Depósito de Matéria Prima finalizando...\n");
@@ -39,7 +49,23 @@ void *deposito_canetas(void *arg) {
     //printf("Depósito de Canetas com capacidade de %d canetas.\n");
 
     while (1) {
-        
+        sem_wait(&full); // Espera que uma caneta seja produzida
+
+        if (entrada[4] > 0) {
+            entrada[4]--; // Decrementa a quantidade de canetas no depósito.
+            printf("Caneta retirada para venda. Canetas restantes: %d\n", entrada[4]);
+            sem_post(&available); 
+        } else {
+            printf("Depósito de Canetas vazio. Aguardando produção...\n");
+            sem_post(&full); 
+        }
+
+        if (entrada[4] == 0) { // Verifica se o depósito está vazio
+            printf("Depósito vazio. Thread Depósito de Canetas encerrada.\n");
+            break;
+        }
+
+        sleep(1); // Ajustar ainda!!!
     }
 
     pthread_exit(NULL);
