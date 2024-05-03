@@ -207,57 +207,77 @@ void *controle(void *arg) {
             //Um local do código que não deve entrar
             printf("ERRO!!! slots de canetas"); 
         }
-       
     }
-
-    pthread_exit(NULL);
 }
+    
+void *deposito_canetas(void *arg){
 
-void *deposito_canetas(void *arg) {
     while (1) {
         pthread_mutex_lock(&mutex_canetas);
-        while (canetas_no_deposito >= entrada[4]) {  // Espera se o depósito estiver cheio
-            pthread_cond_wait(&dep_canetas_com_espaco, &mutex_canetas);
+        
+        // Verifica se o depósito está cheio e comunica ao controle
+        while (canetas_no_deposito >= entrada[4]) {  
+            pthread_cond_signal(&dep_canetas_cheio); // Informa ao controle que o depósito está cheio
+            pthread_cond_wait(&dep_canetas_com_espaco, &mutex_canetas); // Aguarda até que haja espaço
         }
 
-        pthread_mutex_unlock(&mutex_canetas); // Libera o mutex enquanto espera produção
+        pthread_mutex_unlock(&mutex_canetas); // Libera o mutex enquanto aguarda a produção de novas canetas
         pthread_cond_wait(&dep_canetas_cheio, &mutex_canetas); // Espera sinal de nova caneta produzida
 
         pthread_mutex_lock(&mutex_canetas);
         if (canetas_no_deposito < entrada[4]) {
-            canetas_no_deposito++; // Recebe a caneta produzida
+            canetas_no_deposito++; // Adiciona a caneta produzida ao depósito
             printf("Caneta adicionada ao depósito. Total no depósito: %d\n", canetas_no_deposito);
+            if (canetas_no_deposito < entrada[4]) {
+                pthread_cond_signal(&dep_canetas_com_espaco); // Informa que ainda há espaço para mais canetas
+            }
         }
-        pthread_cond_signal(&dep_canetas_cheio); // Sinaliza que há espaço para mais produção se necessário
         pthread_mutex_unlock(&mutex_canetas);
     }
 
     pthread_exit(NULL);
 }
 
+
 void *comprador(void *arg) {
-    int tempo_entre_compras = entrada[6]; // tempo em segundos entre compras.
+    int tempo_entre_compras = entrada[6];  // Tempo em segundos entre compras.
+    int canetas_compradas;
 
     while (1) {
         pthread_mutex_lock(&mutex_canetas);
-        while (canetas_no_deposito < entrada[5]) {  // Aguarda ter canetas suficientes para comprar
-            printf("Aguardando canetas suficientes para comprar. Canetas disponíveis: %d\n", canetas_no_deposito);
+
+        // Espera até que haja canetas disponíveis
+        while (canetas_no_deposito < entrada[5]) {
+            if (canetas_no_deposito > 0) {
+                printf("Canetas insuficientes para a compra completa. Disponíveis: %d, Requeridas: %d. Realizando compra parcial...\n", canetas_no_deposito, entrada[5]);
+                break;  // Sai do loop para comprar as canetas disponíveis
+            }
+            printf("Nenhuma caneta disponível para compra. Aguardando reposição...\n");
             pthread_cond_wait(&dep_canetas_cheio, &mutex_canetas);
         }
 
-        canetas_no_deposito -= entrada[5];  // Realiza a compra
-        printf("Canetas compradas. Canetas restantes no depósito: %d\n", canetas_no_deposito);
+        // Determina a quantidade de canetas a ser comprada
+        canetas_compradas = (canetas_no_deposito >= entrada[5]) ? entrada[5] : canetas_no_deposito;
+        canetas_no_deposito -= canetas_compradas;
 
-        if (canetas_no_deposito < entrada[4]) {  // se o depósito não estiver cheio
-            pthread_cond_signal(&dep_canetas_com_espaco);  // notifica que ha espaço para mais canetas
+        // Comunica ao criador o resultado da operação
+        if (canetas_compradas > 0) {
+            printf("Criador, o comprador adquiriu %d canetas. Canetas restantes no depósito: %d\n", canetas_compradas, canetas_no_deposito);
+        } else {
+            printf("Criador, não foi possível atender o pedido de %d canetas.\n", entrada[5]);
         }
-        pthread_mutex_unlock(&mutex_canetas);
 
-        sleep(tempo_entre_compras);  // Espera pelo próximo ciclo de compra baseado na variável explicitamente definida
+        if (canetas_no_deposito < entrada[4]) {  // Se houver espaço para mais canetas após a compra
+            pthread_cond_signal(&dep_canetas_com_espaco);
+        }
+
+        pthread_mutex_unlock(&mutex_canetas);
+        sleep(tempo_entre_compras);  // Espera pelo próximo ciclo de compra
     }
 
     pthread_exit(NULL);
 }
+
 
 int main(int argc, char *argv[]) {
     if (argc != 8) {
