@@ -9,7 +9,8 @@ myapps:
 	gcc $(APPS)/main.c -o $(BIN)/programaTrab -pthread -lrt
 
 run:
-	$(BIN)/programaTrab 14 100 5 5 10 50 3
+	$(BIN)/programaTrab 10 2 4 2 1 1 1
+#14 100 5 5 10 50 3
 
 valgrind: $(BIN)/programaTrab
 	valgrind --leak-check=full --show-leak-kinds=all $(BIN)/programaTrab
