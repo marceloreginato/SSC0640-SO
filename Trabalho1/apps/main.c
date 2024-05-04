@@ -24,10 +24,12 @@ int canetas_compradas = 0; //Quantidade de canetas que o comprador recebe
 int canetas_solicitadas = 0; //Quantidade de canetas solicitadas
 int sinal_deposito_comprador = 1; //Sinal que o depósito envia para o comprador, informando que não será possível atender a demanda devido ao estoque zerado (Assume valor -1). 
 int sinal_comprador_controle = 1; //Sinal que o comprador envia para o criador. Assume valor -1 se não recebeu nem uma caneta após solicitação 
+int quantidade_materia_prima = 0; //Quantidade de matéria prima no depósito de matéria prima
 
 //Variáveis e semáforos de indicação de suicídio
 pthread_mutex_t mutex_morte_matprima; 
 int morte_dep_materia_prima = 0;
+int acabou_tudo = 0; //0 -> ainda está rodando a aplicação, 1 -> as condições de término foram atingidas
 
 
 //Declaração dos semáforos
@@ -37,6 +39,7 @@ pthread_mutex_t mutex_controle_depositos_primarios; //Semáforo para o controle 
 int controle_depositos_primarios = 0; //Variável de controle para os depósitos, inicia bloqueando até que o controle desbloqueie 
 pthread_mutex_t mutex_sinal_dep_comprador; //Semáforo para o controle do sinal que o depósito envia para o comprador 
 pthread_mutex_t mutex_sinal_comprador_criador; //Semáforo para o controle do sinal que o comprador envia para o criador
+pthread_mutex_t mutex_materia_prima_deposito; //Semáforo para a quantidade de matéria prima no depósito de matéria prima
 
 //Variáveis de condição
 pthread_cond_t dep_materiaprima_vazios;
@@ -57,6 +60,9 @@ void *comprador(void *arg);
 void *criador(void *arg) {
     printf("Thread Criador em execução.\n");
     printf("Threads criadas\n");
+
+    quantidade_materia_prima = entrada[0]; //quantidade de matéria prima no depósitoint quantidade_materia_prima
+
     // Criando threads e verificando se não houve erro em suas criações
     if(pthread_create(&threads[1], NULL, deposito_materia_prima, NULL)) {
         printf("ERRO -- pthread_create - deposito de materia prima\n");
@@ -79,7 +85,42 @@ void *criador(void *arg) {
         pthread_exit((void *) -1);
     }
 
+    while (1){
+        //ROTINA DOS PRINTS
 
+
+        //Realizando o teste para verificar se chegou ao fim da aplicação (acabou matéria prima no Rank 1 e as canetas no Rank 4)
+        pthread_mutex_lock(&mutex_materia_prima_deposito); //Entrando na região crítica para verificar o depósito
+        if (quantidade_materia_prima == 0) { //Acabou a matéria prima no depósito
+            pthread_mutex_unlock(&mutex_materia_prima_deposito); 
+            pthread_mutex_lock(&mutex_canetas);
+            if (canetas_no_deposito == 0){ //Acabou o estoque de canetas no depósito de canetas
+                pthread_mutex_unlock(&mutex_canetas);
+                pthread_mutex_lock(&mutex_materia_prima);
+                if (materia_prima_disponivel == 0) { //Garantindo que não esteja acontecendo fabricação de canetas nessa situação
+                    pthread_mutex_unlock(&mutex_materia_prima);
+
+                    //ACABOU A APLICAÇÃO -> Sinalizar para o criador que é para finalizar as threads
+                    printf("Encerrando a aplicação!!!!\n");
+                    pthread_cancel(threads[5]); //Comprador
+                    pthread_cancel(threads[4]); //Depósito canetas
+                    pthread_cancel(threads[3]); //Controle
+                    pthread_cancel(threads[2]); //Célula fabricação
+                    pthread_cancel(threads[1]); //Depósito Matéria Prima
+                    pthread_exit(NULL); //Matando a Thread Criador
+                } 
+                else {
+                    pthread_mutex_unlock(&mutex_materia_prima);
+                }
+            }
+            else {
+                pthread_mutex_unlock(&mutex_canetas);
+            }
+        }
+        else {
+            pthread_mutex_unlock(&mutex_materia_prima_deposito); 
+        }
+    }
 
     pthread_exit(NULL);
 }
@@ -103,8 +144,10 @@ void *deposito_materia_prima(void *arg) {
             pthread_mutex_unlock(&mutex_cel_fab);
         }
     }
+    
+    pthread_mutex_lock(&mutex_materia_prima_deposito);
+    pthread_mutex_unlock(&mutex_materia_prima_deposito);
 
-    int quantidade_materia_prima = entrada[0]; //quantidade de matéria prima no depósito
     int quant_materia_prima_a_ser_enviada = entrada[1]; //quantidade de matéria prima que deve ser enviada a cada iteração
     int tempo_de_envio = entrada[2]; //tempo de envio de cada iteração
 
@@ -112,12 +155,16 @@ void *deposito_materia_prima(void *arg) {
         pthread_mutex_lock(&mutex_controle_depositos_primarios);
         if(controle_depositos_primarios != 0) { //Testando uma região crítica
             pthread_mutex_unlock(&mutex_controle_depositos_primarios);
+
+            pthread_mutex_lock(&mutex_materia_prima_deposito);
             if(quantidade_materia_prima != 0){
                 //Significa que tem materia prima disponível para enviar
                 if(quantidade_materia_prima >= quant_materia_prima_a_ser_enviada && quant_materia_prima_a_ser_enviada > 0) {
                     //Significa que tem mais matéria prima do que a quantidade que tem que enviar a cada iteração
                     //e tem quantidade para ser enviada
                     quantidade_materia_prima -= quant_materia_prima_a_ser_enviada;
+                    pthread_mutex_unlock(&mutex_materia_prima_deposito);
+
                     pthread_mutex_lock(&mutex_materia_prima); //Vamos mexer em uma região crítica
                     printf("Enviando materia prima...\n");
                     materia_prima_disponivel += quant_materia_prima_a_ser_enviada;
@@ -128,14 +175,16 @@ void *deposito_materia_prima(void *arg) {
                 }
                 else if(quantidade_materia_prima < quant_materia_prima_a_ser_enviada && quant_materia_prima_a_ser_enviada > 0) {
                     //Significa que tem menos materia prima disponível do que a quantidade que teriamos que enviar, logo, enviaremos tudo
-                    pthread_mutex_lock(&mutex_materia_prima);
-                    printf("Entrou na quantidade de materia prima < quantidade a ser enviada\n");
-                    printf("Enviando materia prima...\n");
-                    materia_prima_disponivel += quant_materia_prima_a_ser_enviada;
                     quantidade_materia_prima -= quant_materia_prima_a_ser_enviada;
+                    pthread_mutex_unlock(&mutex_materia_prima_deposito);
+
+                    pthread_mutex_lock(&mutex_materia_prima);
+                    materia_prima_disponivel += quant_materia_prima_a_ser_enviada;
                     //Matéria prima enviada
                     pthread_cond_signal(&dep_materiaprima_vazios);
                     pthread_mutex_unlock(&mutex_materia_prima);
+                    printf("Entrou na quantidade de materia prima < quantidade a ser enviada\n");
+                    printf("Enviando materia prima...\n");
                 }
                 else if(quant_materia_prima_a_ser_enviada <= 0) {
                     //Não tem pedido de matéria prima
@@ -281,7 +330,7 @@ void *controle(void *arg) {
             //Um local do código que não deve entrar
             printf("ERRO!!! slots de canetas"); 
         }
-    
+
     }
 
     pthread_exit(NULL);
@@ -332,12 +381,12 @@ void *deposito_canetas(void *arg) {
         }
         else if(canetas_no_deposito < canetas_solicitadas && canetas_no_deposito > 0) { //A quantidade solicitada é maior do que existe em estoque, mas o estoque ainda existe
             //Vamos enviar tudo o que temos
+            printf("Compra feita malo meno! QTD COMPRADA: %d\n", canetas_no_deposito);
             canetas_compradas += canetas_no_deposito; //Enviando tudo o que existe no depósito
             slots_canetas_disponiveis += canetas_no_deposito; //Atualizando os slots disponíveis no depósito, o qual é aumentado na quantidade de canetas que tinham no depósito, haja vista que enviamos tudo
             canetas_solicitadas -= canetas_no_deposito; //Como não enviamos o pedido completo, as canetas solicitadas é o que faltou enviar 
             canetas_no_deposito = 0; //Como foi enviado tudo o que o depósito tinha em estoque, o estoque foi zerado
             pthread_mutex_unlock(&mutex_canetas); //Liberamos a região crítica
-            printf("Compra feita malo meno!\n");
         }
         else if(canetas_no_deposito == 0) { //A quantidade solicitada não será atendida nem em uma unidade
             pthread_mutex_unlock(&mutex_canetas);
