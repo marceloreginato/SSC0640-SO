@@ -1,3 +1,16 @@
+/*Nomes:
+Giovanni dos Santos - 13695341
+Guilherme Augusto Fincatti da Silva - 13676986
+João Victor de Almeida - 13695424
+Marcelo Eduardo Reginato - 13676965
+Pedro Guilherme de Barros Zenatte - 13676919
+Para compilar com o makefile: (Necessário ajustar as entradas no makefile)
+make
+Para compilar sem o makefile:
+gcc ./apps/main.c -o ./bin/programaTrab -pthread -lrt
+./bin/programaTrab int1 int2 int3 int4 int5 int6 int7
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -30,6 +43,7 @@ int quantidade_materia_prima = 0; //Quantidade de matéria prima no depósito de
 pthread_mutex_t mutex_morte_matprima; 
 int morte_dep_materia_prima = 0;
 int acabou_tudo = 0; //0 -> ainda está rodando a aplicação, 1 -> as condições de término foram atingidas
+int impressao1 = 0, impressao2 = 0, impressao3 = 0; //1 -> compra feita com sucesso, 2 -> compra feita de forma insatisfatória, 3 -> Compra abortada pela falta estoque
 
 
 //Declaração dos semáforos
@@ -40,6 +54,7 @@ int controle_depositos_primarios = 0; //Variável de controle para os depósitos
 pthread_mutex_t mutex_sinal_dep_comprador; //Semáforo para o controle do sinal que o depósito envia para o comprador 
 pthread_mutex_t mutex_sinal_comprador_criador; //Semáforo para o controle do sinal que o comprador envia para o criador
 pthread_mutex_t mutex_materia_prima_deposito; //Semáforo para a quantidade de matéria prima no depósito de matéria prima
+pthread_mutex_t mutex_impressao1, mutex_impressao2, mutex_impressao3; 
 
 //Variáveis de condição
 pthread_cond_t dep_materiaprima_vazios;
@@ -87,8 +102,37 @@ void *criador(void *arg) {
 
     while (1){
         //ROTINA DOS PRINTS
+        /*pthread_mutex_lock(&mutex_impressao1);
+        if (impressao1 == 1){
+            impressao1 = 0;
+            pthread_mutex_unlock(&mutex_impressao1);
+            printf("Compra feita com sucesso\n");
+        }
+        else{
+            pthread_mutex_unlock(&mutex_impressao1);
+        }
+        
+        pthread_mutex_lock(&mutex_impressao2);
+        if(impressao2 == 1){
+            impressao2 = 0;
+            pthread_mutex_unlock(&mutex_impressao2);
+            printf("Compra feita de forma insatisfatória (Estoque < Pedido)\n");
+        }
+        else{
+            pthread_mutex_unlock(&mutex_impressao2);
+        }
 
+        pthread_mutex_lock(&mutex_impressao3);
+        if(impressao3 == 1){
+            impressao3 = 0;
+            pthread_mutex_unlock(&mutex_impressao3);
+            printf("Compra abortada, devido a falta de estoque\n");
+        }
+        else{
+            pthread_mutex_unlock(&mutex_impressao3);
+        }*/
 
+        
         //Realizando o teste para verificar se chegou ao fim da aplicação (acabou matéria prima no Rank 1 e as canetas no Rank 4)
         pthread_mutex_lock(&mutex_materia_prima_deposito); //Entrando na região crítica para verificar o depósito
         if (quantidade_materia_prima == 0) { //Acabou a matéria prima no depósito
@@ -99,8 +143,9 @@ void *criador(void *arg) {
                 pthread_mutex_lock(&mutex_materia_prima);
                 if (materia_prima_disponivel == 0) { //Garantindo que não esteja acontecendo fabricação de canetas nessa situação
                     pthread_mutex_unlock(&mutex_materia_prima);
-
+                    acabou_tudo = 1;
                     //ACABOU A APLICAÇÃO -> Sinalizar para o criador que é para finalizar as threads
+                    while (acabou_tudo == 1); //Esperando todas as compras serem "printadas"
                     printf("Encerrando a aplicação!!!!\n");
                     pthread_cancel(threads[5]); //Comprador
                     pthread_cancel(threads[4]); //Depósito canetas
@@ -166,11 +211,11 @@ void *deposito_materia_prima(void *arg) {
                     pthread_mutex_unlock(&mutex_materia_prima_deposito);
 
                     pthread_mutex_lock(&mutex_materia_prima); //Vamos mexer em uma região crítica
-                    printf("Enviando materia prima...\n");
+                    //printf("Enviando materia prima...\n");
                     materia_prima_disponivel += quant_materia_prima_a_ser_enviada;
                     //Materia prima enviada
                     pthread_cond_signal(&dep_materiaprima_vazios);
-                    printf("Materia prima enviada\n");
+                    //printf("Materia prima enviada\n");
                     pthread_mutex_unlock(&mutex_materia_prima);
                 }
                 else if(quantidade_materia_prima < quant_materia_prima_a_ser_enviada && quant_materia_prima_a_ser_enviada > 0) {
@@ -183,17 +228,17 @@ void *deposito_materia_prima(void *arg) {
                     //Matéria prima enviada
                     pthread_cond_signal(&dep_materiaprima_vazios);
                     pthread_mutex_unlock(&mutex_materia_prima);
-                    printf("Entrou na quantidade de materia prima < quantidade a ser enviada\n");
-                    printf("Enviando materia prima...\n");
+                    //printf("Entrou na quantidade de materia prima < quantidade a ser enviada\n");
+                    //printf("Enviando materia prima...\n");
                 }
                 else if(quant_materia_prima_a_ser_enviada <= 0) {
                     //Não tem pedido de matéria prima
-                    printf("Nao tem pedido de materia prima para a celula de fabricacao\n");
+                    //printf("Nao tem pedido de materia prima para a celula de fabricacao\n");
                 }
             }
             else {
                 //Quantidade matéria prima acabou
-                printf("Acabou a materia prima...Parando o envio\n");
+                //printf("Acabou a materia prima...Parando o envio\n");
                 pthread_mutex_lock(&mutex_morte_matprima);
                 morte_dep_materia_prima = 1; //Indicando para o criador que essa thread pode ser morta 
                 pthread_mutex_unlock(&mutex_morte_matprima);
@@ -202,9 +247,9 @@ void *deposito_materia_prima(void *arg) {
             sleep(tempo_de_envio);
         }
         else {
-            printf("PARANDO DEPÓSITO DE MATÉRIA PRIMA\n");
+            //printf("PARANDO DEPÓSITO DE MATÉRIA PRIMA\n");
             pthread_cond_wait(&controle_destrava, &mutex_controle_depositos_primarios); //O Controle mandou o sinal pelo controle_depositos (0 ou 1), o que travou a thread, a qual está esperando um sinal do controle para destravar
-            printf("Voltando a enviar matéria prima...\n");
+            //printf("Voltando a enviar matéria prima...\n");
             pthread_mutex_unlock(&mutex_controle_depositos_primarios);
         }
         
@@ -243,15 +288,15 @@ void *celula_fabricacao(void *arg) {
             
             pthread_mutex_lock(&mutex_materia_prima); //Entrando na região crítica
             if(materia_prima_disponivel > 0) {
-                printf("Temos matéria prima disponível na célula de fabricação\n");
+                //printf("Temos matéria prima disponível na célula de fabricação\n");
                 materia_prima_disponivel--; //A célula de fabricação está pegando uma unidade de matéria prima
                 pthread_mutex_unlock(&mutex_materia_prima); //Liberando a região crítica
             }
             else {
                 //Não temos matéria prima disponível
-                printf("Acabou a materia prima disponivel na célula de fabricação\n");
+                ///printf("Acabou a materia prima disponivel na célula de fabricação\n");
                 pthread_cond_wait(&dep_materiaprima_vazios, &mutex_materia_prima); //Espera até que haja matéria prima disponível
-                printf("Temos matéria prima disponível novamente na célula de fabricação\n");
+                //printf("Temos matéria prima disponível novamente na célula de fabricação\n");
                 //Após o sinal de matéria prima chegar, então podemos retirar uma unidade
                 materia_prima_disponivel--; 
                 pthread_mutex_unlock(&mutex_materia_prima);
@@ -259,13 +304,13 @@ void *celula_fabricacao(void *arg) {
 
             //Após pegar a matéria prima, fabricaremos uma caneta
             //Fabricando uma caneta
-            printf("Fabricando uma caneta...\n");
+            //printf("Fabricando uma caneta...\n");
             sleep(tempo_fabricacao_caneta);
             
 
             //Após a fabricação, enviamos a caneta para o depósito de canetas
             pthread_mutex_lock(&mutex_canetas); //Região crítica para o depósito de canetas
-            printf("Caneta fabricada e sendo enviada para o depósito\n");
+            //printf("Caneta fabricada e sendo enviada para o depósito\n");
             canetas_no_deposito++; //Enviamos a caneta para o depósito
             slots_canetas_disponiveis--; //Atualizamos a quantidade de slots disponíveis na quantidade de caneta
 
@@ -276,9 +321,9 @@ void *celula_fabricacao(void *arg) {
             pthread_mutex_unlock(&mutex_canetas);
         }
         else {
-            printf("PARANDO CÉLULA DE FABRICAÇÃO\n");
+            //printf("PARANDO CÉLULA DE FABRICAÇÃO\n");
             pthread_cond_wait(&controle_destrava, &mutex_controle_depositos_primarios); //O Controle mandou o sinal pelo controle_depositos (0 ou 1), o que travou a thread, a qual está esperando um sinal do controle para destravar
-            printf("Voltando a fabricar canetas...\n");
+            //printf("Voltando a fabricar canetas...\n");
             pthread_mutex_unlock(&mutex_controle_depositos_primarios);
         }
     }
@@ -301,22 +346,22 @@ void *controle(void *arg) {
         }
     }
     
-    printf("Controle em execução, coordenando operações.\n");
+    //printf("Controle em execução, coordenando operações.\n");
 
     while (1) {
         pthread_mutex_lock(&mutex_canetas); //Acessando uma região crítica relacionada ao depósito de canetas
         if(slots_canetas_disponiveis == 0) { //Significa que o depósito de canetas esta cheio
-            printf("ENTROU!!!\n");
+            //printf("ENTROU!!!\n");
             pthread_mutex_unlock(&mutex_canetas);
             pthread_mutex_lock(&mutex_controle_depositos_primarios); //Acessando uma região crítica
-            printf("Depósito de canetas CHEIO!!!\n");
+            //printf("Depósito de canetas CHEIO!!!\n");
             controle_depositos_primarios = 0; //Atribuindo o valor de parada para a célula de fabricação e para o depósito de matéria prima
             pthread_cond_wait(&dep_canetas_com_espaco, &mutex_controle_depositos_primarios); //Travando a thread até receber um sinal do depósito de canetas informando que há espaços livres e liberando o mutex
             //Thread recebeu o sinal esperado
             pthread_mutex_unlock(&mutex_controle_depositos_primarios); //Liberando a região crítica novamente
         }
         else if(slots_canetas_disponiveis > 0) {
-            printf("ENTROU AQUI!!!\n");
+            //printf("ENTROU AQUI!!!\n");
             pthread_mutex_unlock(&mutex_canetas);
             pthread_mutex_lock(&mutex_controle_depositos_primarios);
             controle_depositos_primarios = 1; //Atribuindo o valor de liberação para as threads
@@ -328,7 +373,7 @@ void *controle(void *arg) {
         }
         else {
             //Um local do código que não deve entrar
-            printf("ERRO!!! slots de canetas"); 
+            //printf("ERRO!!! slots de canetas"); 
         }
 
     }
@@ -377,24 +422,44 @@ void *deposito_canetas(void *arg) {
             slots_canetas_disponiveis += canetas_solicitadas; //A quantidade de slots disponíveis no depósito aumenta na quantidade que foi enviada
             canetas_solicitadas = 0; //Atualizamos a quantidade de canetas solicitadas para 0 até que haja uma nova iteração
             pthread_mutex_unlock(&mutex_canetas); //Liberamos a região crítica
+            
+            //Definindo o tipo de impressão que será realizado no criador
+            pthread_mutex_lock(&mutex_impressao1);
+            impressao1 = 1;
+            pthread_mutex_unlock(&mutex_impressao1);
+
             printf("Compra feita com sucesso!\n");
         }
         else if(canetas_no_deposito < canetas_solicitadas && canetas_no_deposito > 0) { //A quantidade solicitada é maior do que existe em estoque, mas o estoque ainda existe
             //Vamos enviar tudo o que temos
-            printf("Compra feita malo meno! QTD COMPRADA: %d\n", canetas_no_deposito);
             canetas_compradas += canetas_no_deposito; //Enviando tudo o que existe no depósito
             slots_canetas_disponiveis += canetas_no_deposito; //Atualizando os slots disponíveis no depósito, o qual é aumentado na quantidade de canetas que tinham no depósito, haja vista que enviamos tudo
             canetas_solicitadas -= canetas_no_deposito; //Como não enviamos o pedido completo, as canetas solicitadas é o que faltou enviar 
             canetas_no_deposito = 0; //Como foi enviado tudo o que o depósito tinha em estoque, o estoque foi zerado
             pthread_mutex_unlock(&mutex_canetas); //Liberamos a região crítica
+
+            //Definindo o tipo de impressão que será realizado no criador
+            pthread_mutex_lock(&mutex_impressao2);
+            impressao2 = 2;
+            pthread_mutex_unlock(&mutex_impressao2);
+
+            printf("Compra feita de forma insatisfatória!\n");
         }
         else if(canetas_no_deposito == 0) { //A quantidade solicitada não será atendida nem em uma unidade
             pthread_mutex_unlock(&mutex_canetas);
             pthread_mutex_lock(&mutex_sinal_dep_comprador);
             sinal_deposito_comprador = -1; //Atribuindo o sinal de demanda não será atendida por falta de estoque (estoque zerado)
             pthread_mutex_unlock(&mutex_sinal_dep_comprador);
-            //COMO APENAS O CRIADOR POSSUI PODER DE PRINTAR, VAMOS COLOCAR VARIÁVEIS DE NÚMEROS INDICANDO AS RESPOSTAS
-            printf("Infelizmente seu pedido não poderá ser atendido, haja a falta de estoque\n"); 
+
+            if (acabou_tudo == 1)
+                acabou_tudo = 0;
+            else
+                printf("Infelizmente seu pedido não poderá ser atendido, haja visto a falta de estoque\n"); 
+            
+            //Definindo o tipo de impressão que será realizado no criador
+            pthread_mutex_lock(&mutex_impressao3);
+            impressao3 = 3;
+            pthread_mutex_unlock(&mutex_impressao3);  
         }
         
 
@@ -417,14 +482,14 @@ void *comprador(void *arg) {
         pthread_mutex_lock(&mutex_canetas);
         canetas_solicitadas = entrada[5]; //Solicitando um valor de canetas
         pthread_cond_signal(&pedido_solicitado);
-        printf("Canetas solicitadas...\n");
+        //printf("Canetas solicitadas...\n");
         pthread_mutex_unlock(&mutex_canetas);
 
         //Depois testamos se o depósito está enviando unidades de canetas
         pthread_mutex_lock(&mutex_sinal_dep_comprador);
         if(sinal_deposito_comprador == -1) { //Significa que não foi atendido o pedido em nem uma única unidade de caneta
             pthread_mutex_unlock(&mutex_sinal_dep_comprador);
-            printf("COMPRADOR: O DEPÓSITO NAO TINHA ESTOQUE\n");
+            //printf("COMPRADOR: O DEPÓSITO NAO TINHA ESTOQUE\n");
             pthread_mutex_lock(&mutex_sinal_comprador_criador);
             sinal_comprador_controle = -1; //Passando o sinal para o controle informando que não recebeu, em nem uma unidade, a solicitação de caneta
             pthread_mutex_unlock(&mutex_sinal_comprador_criador);
